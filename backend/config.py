@@ -2,8 +2,11 @@ import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file in parent directory
+load_dotenv("../.env")
+
+# Fix tokenizers parallelism warning
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 @dataclass
 class Config:

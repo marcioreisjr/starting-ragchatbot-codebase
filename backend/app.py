@@ -40,10 +40,15 @@ class QueryRequest(BaseModel):
     query: str
     session_id: Optional[str] = None
 
+class SourceItem(BaseModel):
+    """Model for a source citation with optional link"""
+    text: str
+    link: Optional[str] = None
+
 class QueryResponse(BaseModel):
     """Response model for course queries"""
     answer: str
-    sources: List[str]
+    sources: List[SourceItem]
     session_id: str
 
 class CourseStats(BaseModel):
@@ -65,12 +70,28 @@ async def query_documents(request: QueryRequest):
         # Process query using RAG system
         answer, sources = rag_system.query(request.query, session_id)
         
+        # Convert sources to SourceItem objects
+        source_items = []
+        for source in sources:
+            if isinstance(source, dict) and 'text' in source:
+                # New structured source format
+                source_items.append(SourceItem(
+                    text=source['text'],
+                    link=source.get('link')
+                ))
+            else:
+                # Legacy string format for backward compatibility
+                source_items.append(SourceItem(text=str(source)))
+        
         return QueryResponse(
             answer=answer,
-            sources=sources,
+            sources=source_items,
             session_id=session_id
         )
     except Exception as e:
+        print(f"Query error: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/courses", response_model=CourseStats)
@@ -82,6 +103,15 @@ async def get_course_stats():
             total_courses=analytics["total_courses"],
             course_titles=analytics["course_titles"]
         )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/session/{session_id}")
+async def delete_session(session_id: str):
+    """Clear a specific session's conversation history"""
+    try:
+        rag_system.session_manager.clear_session(session_id)
+        return {"message": "Session cleared successfully"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

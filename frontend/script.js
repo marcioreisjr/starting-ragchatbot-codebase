@@ -5,7 +5,7 @@ const API_URL = '/api';
 let currentSessionId = null;
 
 // DOM elements
-let chatMessages, chatInput, sendButton, totalCourses, courseTitles;
+let chatMessages, chatInput, sendButton, totalCourses, courseTitles, newChatButton;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sendButton = document.getElementById('sendButton');
     totalCourses = document.getElementById('totalCourses');
     courseTitles = document.getElementById('courseTitles');
+    newChatButton = document.getElementById('newChatButton');
     
     setupEventListeners();
     createNewSession();
@@ -28,6 +29,11 @@ function setupEventListeners() {
     chatInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
+    
+    // New chat functionality
+    if (newChatButton) {
+        newChatButton.addEventListener('click', startNewChat);
+    }
     
     
     // Suggested questions
@@ -122,10 +128,25 @@ function addMessage(content, type, sources = null, isWelcome = false) {
     let html = `<div class="message-content">${displayContent}</div>`;
     
     if (sources && sources.length > 0) {
+        // Handle sources as either structured objects or plain strings for backward compatibility
+        const sourcesHtml = sources.map(source => {
+            if (typeof source === 'object' && source.text) {
+                // New structured source with optional link
+                if (source.link) {
+                    return `<a href="${escapeHtml(source.link)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.text)}</a>`;
+                } else {
+                    return escapeHtml(source.text);
+                }
+            } else {
+                // Legacy plain string source
+                return escapeHtml(source);
+            }
+        }).join(', ');
+        
         html += `
             <details class="sources-collapsible">
                 <summary class="sources-header">Sources</summary>
-                <div class="sources-content">${sources.join(', ')}</div>
+                <div class="sources-content">${sourcesHtml}</div>
             </details>
         `;
     }
@@ -150,6 +171,27 @@ async function createNewSession() {
     currentSessionId = null;
     chatMessages.innerHTML = '';
     addMessage('Welcome to the Course Materials Assistant! I can help you with questions about courses, lessons and specific content. What would you like to know?', 'assistant', null, true);
+}
+
+async function startNewChat() {
+    // Clean up current session on backend if it exists
+    if (currentSessionId) {
+        try {
+            await fetch(`${API_URL}/session/${currentSessionId}`, {
+                method: 'DELETE'
+            });
+        } catch (error) {
+            console.log('Session cleanup failed, but continuing with new session:', error);
+        }
+    }
+    
+    // Create new session and clear UI
+    await createNewSession();
+    
+    // Focus on input field
+    if (chatInput) {
+        chatInput.focus();
+    }
 }
 
 // Load course statistics
